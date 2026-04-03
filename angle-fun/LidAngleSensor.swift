@@ -122,6 +122,7 @@ final class HIDLidAngleSensor {
 
 final class LidAngleViewModel: ObservableObject {
     @Published private(set) var displayText = "—°"
+    @Published private(set) var currentAngle: Int?
 
     private let sensor = HIDLidAngleSensor()
     private let pollQueue = DispatchQueue(label: "com.angle-fun.lid-angle")
@@ -136,6 +137,7 @@ final class LidAngleViewModel: ObservableObject {
             guard let self else { return }
             let angle = self.sensor.currentAngle()
             DispatchQueue.main.async {
+                self.currentAngle = angle
                 if let angle {
                     self.displayText = "\(angle)°"
                 } else {
