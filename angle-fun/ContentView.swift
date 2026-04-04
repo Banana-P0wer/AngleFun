@@ -58,38 +58,30 @@ struct ContentView: View {
                         key: key.key,
                         note: key.label,
                         isBlack: false,
-                        isPressed: synthesizer.pressedKeys.contains(key.key)
+                        isPressed: synthesizer.pressedKeys.contains(key.key),
+                        onPress: { synthesizer.mouseDown(key.key) },
+                        onRelease: { synthesizer.mouseUp(key.key) }
                     )
                 }
             }
 
-            HStack(spacing: 2) {
-                ForEach(0..<9, id: \.self) { index in
-                    Color.clear
-                        .frame(width: 50, height: 1)
-                        .overlay(alignment: .trailing) {
-                            if let key = blackKey(after: index) {
-                                PianoKey(
-                                    key: key.key,
-                                    note: key.label,
-                                    isBlack: true,
-                                    isPressed: synthesizer.pressedKeys.contains(key.key)
-                                )
-                                .offset(x: 21)
-                            }
-                        }
-                }
+            ForEach(Array(PianoSynthesizer.blackKeys.enumerated()), id: \.element.key) { index, key in
+                PianoKey(
+                    key: key.key,
+                    note: key.label,
+                    isBlack: true,
+                    isPressed: synthesizer.pressedKeys.contains(key.key),
+                    onPress: { synthesizer.mouseDown(key.key) },
+                    onRelease: { synthesizer.mouseUp(key.key) }
+                )
+                .position(x: blackKeyCenters[index], y: 46)
             }
         }
         .frame(width: 518, height: 152)
         .padding(.top, 72)
     }
 
-    private func blackKey(after whiteKeyIndex: Int) -> (key: Character, note: Int, label: String)? {
-        let mapping = [0: 0, 1: 1, 3: 2, 4: 3, 5: 4, 7: 5, 8: 6]
-        guard let blackKeyIndex = mapping[whiteKeyIndex] else { return nil }
-        return PianoSynthesizer.blackKeys[blackKeyIndex]
-    }
+    private let blackKeyCenters: [CGFloat] = [51, 103, 207, 259, 311, 415, 467]
 }
 
 private struct PianoKey: View {
@@ -97,6 +89,8 @@ private struct PianoKey: View {
     let note: String
     let isBlack: Bool
     let isPressed: Bool
+    let onPress: () -> Void
+    let onRelease: () -> Void
 
     var body: some View {
         VStack {
@@ -118,6 +112,15 @@ private struct PianoKey: View {
             RoundedRectangle(cornerRadius: 5)
                 .stroke(.black.opacity(isBlack ? 0 : 0.2))
         }
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    onPress()
+                }
+                .onEnded { _ in
+                    onRelease()
+                }
+        )
     }
 }
 

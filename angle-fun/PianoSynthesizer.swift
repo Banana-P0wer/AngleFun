@@ -80,13 +80,33 @@ private final class SynthRenderState: @unchecked Sendable {
 }
 
 final class PianoSynthesizer: ObservableObject {
-    static let whiteKeys: [(key: Character, note: Int, label: String)] = [
-        ("a", 60, "C"), ("s", 62, "D"), ("d", 64, "E"), ("f", 65, "F"), ("g", 67, "G"),
-        ("h", 69, "A"), ("j", 71, "B"), ("k", 72, "C"), ("l", 74, "D"), (";", 76, "E")
+    struct PianoKeyDefinition {
+        let key: Character
+        let keyCode: UInt16
+        let note: Int
+        let label: String
+    }
+
+    static let whiteKeys: [PianoKeyDefinition] = [
+        PianoKeyDefinition(key: "a", keyCode: 0, note: 60, label: "C"),
+        PianoKeyDefinition(key: "s", keyCode: 1, note: 62, label: "D"),
+        PianoKeyDefinition(key: "d", keyCode: 2, note: 64, label: "E"),
+        PianoKeyDefinition(key: "f", keyCode: 3, note: 65, label: "F"),
+        PianoKeyDefinition(key: "g", keyCode: 5, note: 67, label: "G"),
+        PianoKeyDefinition(key: "h", keyCode: 4, note: 69, label: "A"),
+        PianoKeyDefinition(key: "j", keyCode: 38, note: 71, label: "B"),
+        PianoKeyDefinition(key: "k", keyCode: 40, note: 72, label: "C"),
+        PianoKeyDefinition(key: "l", keyCode: 37, note: 74, label: "D"),
+        PianoKeyDefinition(key: ";", keyCode: 41, note: 76, label: "E")
     ]
-    static let blackKeys: [(key: Character, note: Int, label: String)] = [
-        ("w", 61, "C#"), ("e", 63, "D#"), ("t", 66, "F#"), ("y", 68, "G#"),
-        ("u", 70, "A#"), ("o", 73, "C#"), ("p", 75, "D#")
+    static let blackKeys: [PianoKeyDefinition] = [
+        PianoKeyDefinition(key: "w", keyCode: 13, note: 61, label: "C#"),
+        PianoKeyDefinition(key: "e", keyCode: 14, note: 63, label: "D#"),
+        PianoKeyDefinition(key: "t", keyCode: 17, note: 66, label: "F#"),
+        PianoKeyDefinition(key: "y", keyCode: 16, note: 68, label: "G#"),
+        PianoKeyDefinition(key: "u", keyCode: 32, note: 70, label: "A#"),
+        PianoKeyDefinition(key: "o", keyCode: 31, note: 73, label: "C#"),
+        PianoKeyDefinition(key: "p", keyCode: 35, note: 75, label: "D#")
     ]
 
     @Published private(set) var pressedKeys: Set<Character> = []
@@ -94,9 +114,14 @@ final class PianoSynthesizer: ObservableObject {
     private let engine = AVAudioEngine()
     private let state = SynthRenderState()
     private var sourceNode: AVAudioSourceNode?
+    private var keyboardPressedKeys: Set<Character> = []
+    private var mousePressedKeys: Set<Character> = []
 
-    private static let notesByKey: [Character: Int] = Dictionary(
-        uniqueKeysWithValues: (whiteKeys + blackKeys).map { ($0.key, $0.note) }
+    private static let definitionsByKey: [Character: PianoKeyDefinition] = Dictionary(
+        uniqueKeysWithValues: (whiteKeys + blackKeys).map { ($0.key, $0) }
+    )
+    private static let definitionsByKeyCode: [UInt16: PianoKeyDefinition] = Dictionary(
+        uniqueKeysWithValues: (whiteKeys + blackKeys).map { ($0.keyCode, $0) }
     )
 
     init() {
@@ -107,29 +132,54 @@ final class PianoSynthesizer: ObservableObject {
         state.setAngle(angle)
     }
 
-    func keyDown(_ characters: String) {
-        guard let key = characters.lowercased().first,
-              let note = Self.notesByKey[key],
-              !pressedKeys.contains(key) else { return }
-
-        pressedKeys.insert(key)
-        state.noteOn(note)
+    func keyDown(_ keyCode: UInt16) {
+        guard let definition = Self.definitionsByKeyCode[keyCode],
+              !keyboardPressedKeys.contains(definition.key) else { return }
+        keyboardPressedKeys.insert(definition.key)
+        updatePressedState(for: definition)
     }
 
-    func keyUp(_ characters: String) {
-        guard let key = characters.lowercased().first,
-              let note = Self.notesByKey[key] else { return }
+    func keyUp(_ keyCode: UInt16) {
+        guard let definition = Self.definitionsByKeyCode[keyCode] else { return }
+        keyboardPressedKeys.remove(definition.key)
+        updatePressedState(for: definition)
+    }
 
-        pressedKeys.remove(key)
-        state.noteOff(note)
+    func mouseDown(_ key: Character) {
+        guard let definition = Self.definitionsByKey[key],
+              !mousePressedKeys.contains(key) else { return }
+        mousePressedKeys.insert(key)
+        updatePressedState(for: definition)
+    }
+
+    func mouseUp(_ key: Character) {
+        guard let definition = Self.definitionsByKey[key] else { return }
+        mousePressedKeys.remove(key)
+        updatePressedState(for: definition)
     }
 
     func stopAllNotes() {
         for key in pressedKeys {
-            guard let note = Self.notesByKey[key] else { continue }
-            state.noteOff(note)
+            guard let definition = Self.definitionsByKey[key] else { continue }
+            state.noteOff(definition.note)
         }
+        keyboardPressedKeys.removeAll()
+        mousePressedKeys.removeAll()
         pressedKeys.removeAll()
+    }
+
+    private func updatePressedState(for definition: PianoKeyDefinition) {
+        let isPressed = keyboardPressedKeys.contains(definition.key) || mousePressedKeys.contains(definition.key)
+        let wasPressed = pressedKeys.contains(definition.key)
+        guard isPressed != wasPressed else { return }
+
+        if isPressed {
+            pressedKeys.insert(definition.key)
+            state.noteOn(definition.note)
+        } else {
+            pressedKeys.remove(definition.key)
+            state.noteOff(definition.note)
+        }
     }
 
     private func prepareEngine() {

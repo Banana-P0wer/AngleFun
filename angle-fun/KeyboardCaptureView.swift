@@ -9,8 +9,8 @@ import AppKit
 import SwiftUI
 
 struct KeyboardCaptureView: NSViewRepresentable {
-    let onKeyDown: (String) -> Void
-    let onKeyUp: (String) -> Void
+    let onKeyDown: (UInt16) -> Void
+    let onKeyUp: (UInt16) -> Void
     let onFocusLost: () -> Void
 
     func makeNSView(context: Context) -> KeyCaptureNSView {
@@ -37,8 +37,8 @@ struct KeyboardCaptureView: NSViewRepresentable {
 }
 
 final class KeyCaptureNSView: NSView {
-    var onKeyDown: ((String) -> Void)?
-    var onKeyUp: ((String) -> Void)?
+    var onKeyDown: ((UInt16) -> Void)?
+    var onKeyUp: ((UInt16) -> Void)?
     var onFocusLost: (() -> Void)?
 
     override var acceptsFirstResponder: Bool { true }
@@ -49,13 +49,12 @@ final class KeyCaptureNSView: NSView {
     }
 
     override func keyDown(with event: NSEvent) {
-        guard !event.isARepeat, let characters = event.charactersIgnoringModifiers else { return }
-        onKeyDown?(characters)
+        guard !event.isARepeat else { return }
+        onKeyDown?(event.keyCode)
     }
 
     override func keyUp(with event: NSEvent) {
-        guard let characters = event.charactersIgnoringModifiers else { return }
-        onKeyUp?(characters)
+        onKeyUp?(event.keyCode)
     }
 
     override func resignFirstResponder() -> Bool {
